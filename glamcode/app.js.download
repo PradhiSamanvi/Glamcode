@@ -1,0 +1,340 @@
+document.addEventListener('DOMContentLoaded', () => {
+    // --- Elements ---
+    const uploadZone = document.getElementById('upload-zone');
+    const fileInput = document.getElementById('file-input');
+    const identifyBtn = document.getElementById('identify-btn');
+    const generateBtn = document.getElementById('generate-btn');
+    const resultsArea = document.getElementById('results-area');
+    const yearSelector = document.getElementById('year-selector');
+    const trendDisplay = document.getElementById('trend-display');
+    const genderSelect = document.getElementById('gender-select');
+    const occasionSelect = document.getElementById('occasion-select');
+
+    // --- State ---
+    let trendsData = {};
+
+    // --- Theme Logic ---
+    function updateTheme() {
+        if (!genderSelect || !occasionSelect) return;
+
+        const gender = genderSelect.value;
+        const occasion = occasionSelect.value;
+
+        // Reset themes
+        document.body.className = '';
+
+        // Apply Gender Theme
+        if (gender === 'masculine') {
+            document.body.classList.add('theme-masculine');
+        } else if (gender === 'feminine') {
+            document.body.classList.add('theme-feminine');
+        }
+
+        // Apply Occasion Theme
+        if (occasion === 'party') {
+            document.body.classList.add('theme-party');
+        } else if (occasion === 'business') {
+            document.body.classList.add('theme-business');
+        } else if (occasion === 'streetwear') {
+            document.body.classList.add('theme-streetwear');
+        }
+    }
+
+    if (genderSelect) genderSelect.addEventListener('change', updateTheme);
+    if (occasionSelect) occasionSelect.addEventListener('change', updateTheme);
+
+    // --- Fashion Time Machine ---
+    async function initTrends() {
+        if (!yearSelector) return;
+
+        try {
+            const response = await fetch('/api/trends');
+            trendsData = await response.json();
+
+            const years = Object.keys(trendsData).sort();
+            yearSelector.innerHTML = years.map(year => `
+                <button class="year-btn" data-year="${year}">${year}s</button>
+            `).join('');
+
+            // Add click events
+            document.querySelectorAll('.year-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.year-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    displayTrend(btn.dataset.year);
+                });
+            });
+
+            // Show first trend by default
+            if (years.length > 0) {
+                document.querySelector('.year-btn').click();
+            }
+        } catch (error) {
+            console.error("Failed to load trends:", error);
+        }
+    }
+
+    function displayTrend(year) {
+        const trend = trendsData[year];
+        if (!trend || !trendDisplay) return;
+
+        // --- Time Warp Trigger ---
+        const warpOverlay = document.getElementById('time-warp-overlay');
+        if (warpOverlay) {
+            warpOverlay.classList.remove('warp-active');
+            void warpOverlay.offsetWidth; // Trigger reflow
+            warpOverlay.classList.add('warp-active');
+        }
+
+        const titleEl = document.getElementById('trend-title');
+        const descEl = document.getElementById('trend-desc');
+        const featureList = document.getElementById('trend-features');
+        const trendImg = document.getElementById('trend-image');
+        const galleryEl = document.getElementById('trend-gallery');
+        const insightBox = document.getElementById('style-insight');
+        const trendFact = document.getElementById('trend-fact');
+
+        // Apply Dynamic Era Color
+        if (trend.accent_color) {
+            document.documentElement.style.setProperty('--color-era-accent', trend.accent_color);
+        }
+
+        // Add Reveal Classes
+        trendDisplay.classList.remove('reveal-content');
+        void trendDisplay.offsetWidth; // Trigger reflow
+        trendDisplay.classList.add('reveal-content');
+
+        if (titleEl) titleEl.textContent = `${year}s: ${trend.title}`;
+        if (descEl) descEl.textContent = trend.description;
+        if (featureList) featureList.innerHTML = trend.key_features.map(f => `<li>${f}</li>`).join('');
+
+        if (trendImg) {
+            trendImg.src = trend.image;
+            trendImg.classList.remove('hidden');
+        }
+
+        // Handle Style Insight
+        if (insightBox && trend.did_you_know) {
+            trendFact.textContent = trend.did_you_know;
+            insightBox.classList.remove('hidden');
+            // Refresh lucide icons in case
+            if (window.lucide) lucide.createIcons();
+        } else if (insightBox) {
+            insightBox.classList.add('hidden');
+        }
+
+        if (galleryEl && trend.gallery) {
+            galleryEl.innerHTML = trend.gallery.map(imgSrc => `
+                <div class="gallery-item">
+                    <img src="${imgSrc}" alt="${trend.title} aesthetic" loading="lazy" onclick="window.open('${imgSrc}', '_blank')">
+                </div>
+            `).join('');
+        }
+    }
+
+    // --- Trend Identification ---
+    if (identifyBtn && fileInput) {
+        identifyBtn.addEventListener('click', async () => {
+            const files = fileInput.files;
+            if (files.length === 0) {
+                fileInput.click();
+                return;
+            }
+
+            identifyBtn.textContent = "Analyzing...";
+            const formData = new FormData();
+            formData.append('file', files[0]);
+
+            try {
+                const response = await fetch('/api/identify-trend', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                alert(`Detected Era: ${data.year}s - ${data.trend_name}\n\n${data.description}`);
+
+                // Optionally scroll to and highlight that year in the timeline
+                const targetBtn = document.querySelector(`.year-btn[data-year="${data.year}"]`);
+                if (targetBtn) {
+                    targetBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    targetBtn.click();
+                }
+            } catch (error) {
+                console.error("Trend ID error:", error);
+            } finally {
+                identifyBtn.textContent = "Analyze Era";
+            }
+        });
+    }
+
+    // --- AI Recommendation Engine ---
+    if (generateBtn && resultsArea) {
+        generateBtn.addEventListener('click', async () => {
+            const occasionEl = document.getElementById('occasion-select');
+            const moodEl = document.getElementById('mood-select');
+            const bodyTypeEl = document.getElementById('body-type-select');
+            const cityEl = document.getElementById('city-input');
+            const overlay = document.getElementById('synthesis-overlay');
+            const statusEl = document.getElementById('synthesis-status');
+
+            const mood = moodEl ? moodEl.value : 'Neutral';
+
+            // --- Mood-Based Theme Trigger ---
+            document.body.className = '';
+            document.body.classList.add(`mood-${mood}`);
+
+            // --- Neural Synthesis Loading Sequence ---
+            if (overlay) overlay.classList.remove('hidden');
+
+            const statuses = [
+                "Initializing algorithmic curation...",
+                "Analyzing silhouette profile...",
+                "Mapping local climate patterns...",
+                "Synthesizing aesthetic mood...",
+                "Finalizing neural assembly..."
+            ];
+
+            let statusIdx = 0;
+            const statusInterval = setInterval(() => {
+                if (statusEl && statusIdx < statuses.length) {
+                    statusEl.textContent = statuses[statusIdx++];
+                }
+            }, 800);
+
+            try {
+                const formData = new FormData();
+                formData.append('occasion', occasionEl ? occasionEl.options[occasionEl.selectedIndex].text : 'daily');
+                formData.append('mood', mood);
+                formData.append('body_type', bodyTypeEl ? bodyTypeEl.value : 'Average');
+                formData.append('gender', genderSelect ? genderSelect.value : 'unisex');
+                formData.append('city', cityEl ? cityEl.value : '');
+
+                const response = await fetch('/api/recommend', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                // Keep loading for a moment for effect
+                setTimeout(() => {
+                    clearInterval(statusInterval);
+                    if (overlay) overlay.classList.add('hidden');
+                    renderResults(data);
+                    resultsArea.scrollIntoView({ behavior: 'smooth' });
+                }, 4000);
+
+            } catch (error) {
+                console.error("Error generating outfit:", error);
+                if (overlay) overlay.classList.add('hidden');
+                clearInterval(statusInterval);
+                alert("The AI stylist is busy but will be back shortly.");
+            }
+        });
+    }
+
+    function renderResults(data) {
+        if (!resultsArea) return;
+
+        const itemsHtml = data.items.map(item => `
+            <div class="item-card editorial-item">
+                <div class="item-image-container">
+                    <img src="${item.image_url}" alt="${item.name}" class="item-image" onerror="this.src='https://placehold.co/300x400/1a1a1a/FFFFFF?text=Fashion+Item';">
+                </div>
+                <div class="item-details">
+                    <span class="item-name">${item.name}</span>
+                    <div style="display: flex; align-items: center; justify-content: center; margin-top: 5px;">
+                        <span class="color-swatch" style="background-color: ${item.hex}"></span>
+                        <span class="item-color">${item.color}</span>
+                    </div>
+                    <a href="${item.link}" target="_blank" class="buy-link">View Item <i data-lucide="external-link"></i></a>
+                </div>
+            </div>
+        `).join('');
+
+        const tagsHtml = data.tags.map(tag => `<span class="tag">${tag}</span>`).join('');
+        const hairstylesHtml = data.hairstyles.map(h => `<li>${h}</li>`).join('');
+
+        resultsArea.innerHTML = `
+            <div class="editorial-card fade-in">
+                <aside class="editorial-sidebar">
+                    <div class="magazine-header">
+                        <h4 class="playfair">LUMIÈRE</h4>
+                        <div class="magazine-meta">
+                            <span>Issue No. 01</span><br>
+                            <span>Neural Curation</span>
+                        </div>
+                    </div>
+
+                    <div class="technical-analysis">
+                        <div class="matrix-grid">
+                            <div class="matrix-item">
+                                <div class="matrix-header">
+                                    <span>Comfort Profile</span>
+                                    <span>${data.metrics.comfort}%</span>
+                                </div>
+                                <div class="matrix-bar"><div class="matrix-fill" style="width: ${data.metrics.comfort}%"></div></div>
+                            </div>
+                            <div class="matrix-item">
+                                <div class="matrix-header">
+                                    <span>Trend Alignment</span>
+                                    <span>${data.metrics.trend_alignment}%</span>
+                                </div>
+                                <div class="matrix-bar"><div class="matrix-fill" style="width: ${data.metrics.trend_alignment}%"></div></div>
+                            </div>
+                            <div class="matrix-item">
+                                <div class="matrix-header">
+                                    <span>Occasion Accuracy</span>
+                                    <span>${data.metrics.occasion_fit}%</span>
+                                </div>
+                                <div class="matrix-bar"><div class="matrix-fill" style="width: ${data.metrics.occasion_fit}%"></div></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ai-reasoning-editorial">
+                        <p>${data.description}</p>
+                        <div class="lumiere-sig">Lumière AI</div>
+                    </div>
+
+                    <div class="hairstyles-box">
+                        <h5>Editorial Hairstyles</h5>
+                        <ul class="hairstyle-list">
+                            ${hairstylesHtml}
+                        </ul>
+                    </div>
+
+                    <div class="sustainability-box">
+                        <strong>Ecological Debt:</strong> ${data.sustainability_note}
+                    </div>
+                </aside>
+
+                <main class="editorial-main">
+                    <div class="items-grid">
+                        ${itemsHtml}
+                    </div>
+                    <div class="result-footer">
+                        ${tagsHtml}
+                    </div>
+                </main>
+            </div>
+        `;
+        resultsArea.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    }
+
+    // --- File Input Listener for Preview ---
+    if (fileInput && uploadZone) {
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                const p = uploadZone.querySelector('p');
+                if (p) p.textContent = `Ready: ${e.target.files[0].name}`;
+            }
+        });
+    }
+
+    // --- Initialization ---
+    initTrends();
+});
+
